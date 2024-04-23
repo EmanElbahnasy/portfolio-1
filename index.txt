@@ -1,0 +1,106 @@
+// Flame Sensor, Pump, and Buzzer
+int Pump = 8;      // Pump control pin as pin 8
+int Buzzer = 4;    // Buzzer control pin as pin 4
+int Sensor = 12;   // Flame sensor pin as pin 12
+
+// MQ135 Sensor and Fan
+const int MQ135_PIN = A0;  // Analog pin for MQ135 sensor
+const int FAN_PIN = 9;     // Pin for the fan
+
+// DHT11 Sensors
+#define DHT_PIN1 2 // DHT11 sensor 1 connected to digital pin 2
+#define DHT_PIN2 3 // DHT11 sensor 2 connected to digital pin 3
+
+void setup() {
+  Serial.begin(9600);         // Initialize serial communication at 9600 baud rate
+  
+  // Flame Sensor, Pump, and Buzzer setup
+  pinMode(Pump, OUTPUT);      // Set pump pin as output
+  pinMode(Buzzer, OUTPUT);    // Set buzzer pin as output
+  pinMode(Sensor, INPUT_PULLUP); // Set flame sensor pin as input with internal pull-up resistor
+  
+  // MQ135 Sensor and Fan setup
+  pinMode(FAN_PIN, OUTPUT);   // Set the fan pin as output
+  digitalWrite(FAN_PIN, LOW); // Turn off the fan initially
+  
+  // DHT11 Sensors setup
+  // No additional setup needed for DHT11
+  
+}
+
+void loop() {
+  // Flame Sensor, Pump, and Buzzer
+  if (digitalRead(Sensor) == LOW) {
+    Serial.println("Flame Detection!!");
+    digitalWrite(Buzzer, HIGH);  // Turn on the buzzer
+    delay(10000);                // Wait for 10 seconds
+    digitalWrite(Pump, HIGH);    // Turn on the pump
+  } else {
+    Serial.println("NO dangerous");
+    digitalWrite(Pump, LOW);     // Turn off the pump
+    digitalWrite(Buzzer, LOW);   // Turn off the buzzer
+    delay(500);                  // Wait for 0.5 seconds
+  }
+
+  // MQ135 Sensor and Fan
+  int sensorValue = analogRead(MQ135_PIN);
+  float voltage = sensorValue * (5.0 / 1023.0);
+  float resistance = (5.0 - voltage) / voltage;
+  float ppm = 5000 * pow(resistance, -1.179);
+  
+  Serial.print("CO2 ppm: ");
+  Serial.println(ppm);
+
+  if (ppm >= 20000) {
+    digitalWrite(FAN_PIN, HIGH);
+  } else {
+    digitalWrite(FAN_PIN, LOW);
+  }
+
+  delay(1000);  // Delay before next reading
+  
+  // DHT11 Sensors
+  float temperature1 = readTemperature(DHT_PIN1);
+  float temperature2 = readTemperature(DHT_PIN2);
+
+  Serial.print("Sensor 1 Temperature: ");
+  Serial.print(temperature1);
+  Serial.println(" °C");
+
+  Serial.print("Sensor 2 Temperature: ");
+  Serial.print(temperature2);
+  Serial.println(" °C");
+
+  delay(2000);  // Delay between readings
+}
+
+float readTemperature(int pin) {
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, LOW);
+  delay(20);
+  digitalWrite(pin, HIGH);
+  delayMicroseconds(40);
+  pinMode(pin, INPUT);
+
+  while (digitalRead(pin) == LOW);
+  while (digitalRead(pin) == HIGH);
+
+  uint8_t data[5] = {0};
+  for (int i = 0; i < 40; i++) {
+    while (digitalRead(pin) == LOW);
+
+    unsigned long start_time = micros();
+    while (digitalRead(pin) == HIGH);
+
+    if (micros() - start_time > 40) {
+      data[i / 8] |= (1 << (7 - i % 8));
+    }
+  }
+
+  float temperature = data[2];
+  if (data[3] & 0x80) {
+    temperature = -temperature;
+  }
+
+  return temperature;
+}
